@@ -1,0 +1,479 @@
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學科解題工具</title>
+    
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 載入 JS 庫 -->
+    <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!-- 載入 Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@400;700&family=M+PLUS+Rounded+1c:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 基礎樣式 --- */
+        body, html {
+            font-family: "Chiron GoRound TC", "M PLUS Rounded 1c", "Noto Sans TC", system-ui, -apple-system, 
+                         BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", 
+                         Arial, "Noto Sans", sans-serif !important;
+            background-color: #FFFFFF !important;
+            color: #424242;
+        }
+
+        /* 按鈕樣式 (綠色系) */
+        .btn {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: 100%; 
+        }
+        @media (min-width: 640px) {
+            .btn { width: auto; }
+        }
+        .btn:disabled {
+            background-color: #E0E0E0;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .btn-primary {
+            background-color: #059669; 
+            color: #FFFFFF;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background-color: #047857;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .btn-secondary {
+            background-color: #ECFDF5;
+            color: #047857;
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #D1FAE5;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        /* 底部特殊按鈕 (Mint Green) */
+        .btn-mint {
+            background-color: #ecfdf5;
+            color: #047857;
+            border: none;
+            font-weight: bold;
+            padding: 12px 24px;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        .btn-mint:hover {
+            background-color: #d1fae5;
+        }
+
+        /* 輸入框樣式 */
+        textarea {
+            border-radius: 8px;
+            border: 1px solid #6EE7B7;
+            padding: 10px;
+            width: 100%;
+            transition: all 0.3s ease;
+            background-color: #f9fafb;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #047857;
+            box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.3);
+            background-color: #FFFFFF;
+        }
+
+        /* Loading 動畫 */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loader, .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #059669;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border-width: 2px;
+        }
+
+        /* 解題區 UI 修正樣式 */
+        .solver-correction-input:focus-within {
+             border-color: #059669;
+             box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.2);
+        }
+        
+        /* 修正：確保預設顯示的方程式也是圓體 (Chiron GoRound TC) */
+        .solver-equation, .solver-final-eq {
+            font-family: "Chiron GoRound TC", sans-serif !important;
+        }
+    </style>
+</head>
+<body class="bg-white antialiased">
+
+    <div class="container mx-auto max-w-4xl p-4 sm:p-8 my-8 bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-stone-700">學科解題工具</h1>
+            <p class="text-base sm:text-lg text-gray-600 mt-2">上傳題目圖片，AI 自動辨識並產生專業解題過程</p>
+        </header>
+
+        <main class="p-4 sm:p-6">
+            
+            <div class="space-y-6 mb-6">
+                <!-- 1. 上傳區 -->
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">1. 上傳題目圖片</h2>
+                    <!-- 統一風格：按鈕在上 -->
+                    <div class="mb-2">
+                        <button id="solver-selectFileButton" class="btn btn-secondary !w-auto !py-1.5 !px-3">選擇圖片</button>
+                        <input type="file" id="solver-fileInput" accept="image/*" class="hidden">
+                    </div>
+                    <!-- 統一風格：虛線框 -->
+                    <div id="solver-dropArea" tabindex="0" class="relative mb-2 p-4 border-2 border-dashed border-green-300 rounded-lg text-center text-gray-500 min-h-[8rem] flex justify-center items-center transition-colors focus:outline-none focus:border-emerald-600 focus:bg-green-50">
+                        <div id="solver-placeholder">
+                            <p>將圖片拖曳至此</p>
+                            <p class="text-sm">或直接貼上圖片 (Ctrl+V)</p>
+                        </div>
+                        <img id="solver-previewImage" class="hidden max-h-28 max-w-full object-contain">
+                        <!-- 統一風格：刪除鈕 -->
+                        <button id="solver-clearButton" class="absolute hidden -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 items-center justify-center font-bold text-sm">&times;</button>
+                    </div>
+                </div>
+
+                <!-- 2. 辨識與修正 -->
+                <div>
+                     <div class="flex items-center justify-between mb-2">
+                        <h2 class="text-xl font-bold text-gray-800">2. 辨識結果修正</h2>
+                    </div>
+                    <div id="solver-loader-ocr" class="hidden flex items-center gap-2 mb-2 text-emerald-600 font-bold">
+                        <div class="spinner"></div> 正在自動辨識題目文字...
+                    </div>
+                    <div id="solver-correction-area" class="p-1 bg-white rounded-lg relative solver-correction-input border border-emerald-300">
+                        <textarea id="solver-text-output" rows="5" class="w-full border-0 focus:ring-0 bg-transparent resize-y" placeholder="Tip: AI 正在辨識圖片中... 如果 AI 看錯圖片細節，請在此修正..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- 開始解題 -->
+                <div class="text-center my-6">
+                    <button id="solver-solveButton" disabled class="btn btn-primary text-lg">開始解題</button>
+                </div>
+            </div>
+
+            <!-- 解題結果 -->
+            <div id="solver-result-section" class="hidden">
+                 <div id="solver-loader-solving" class="hidden flex flex-col items-center justify-center my-8">
+                    <div class="loader"></div>
+                    <p class="mt-4 text-emerald-700 font-semibold">AI 正在解題中，請稍候...</p>
+                </div>
+
+                <!-- 輸出容器 -->
+                <div id="solver-output-container" class="hidden mt-6 bg-white rounded-lg shadow-inner border border-gray-200 p-6">
+                     <div id="solver-output-content" class="prose max-w-none text-gray-800" style="font-family: 'Chiron GoRound TC', 'Noto Sans TC', sans-serif;"></div>
+                </div>
+
+                <div id="solver-actions" class="hidden flex flex-col sm:flex-row sm:flex-wrap justify-center gap-4 mt-6">
+                     <button id="solver-copy-btn" class="btn-mint">複製解題過程</button>
+                     <button id="solver-download-word-btn" class="btn-mint">下載 Word 檔案</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <footer class="text-center text-xs text-gray-500 py-6 px-4 max-w-4xl mx-auto">
+        <p>
+            © 2025 簡子惠老師 本作品採用 CC BY-NC-SA 4.0 創用CC授權。
+        </p>
+        <p class="mt-1">
+            歡迎非商業用途轉載、引用或改編，請保留「簡子惠老師」署名，並附上本作品原始連結。
+        </p>
+    </footer>
+
+    <script>
+        // --- API Functions ---
+        async function callGeminiAPI(payload) {
+            const apiKey = ""; // 由環境提供
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("API Error Data:", errorData);
+                    throw new Error(errorData?.error?.message || `API 請求失敗，狀態碼： ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error("Gemini API 呼叫錯誤:", error);
+                return null;
+            }
+        }
+
+        // --- 邏輯區 ---
+        const selectFileBtn = document.getElementById('solver-selectFileButton');
+        const clearBtn = document.getElementById('solver-clearButton'); 
+        const fileInput = document.getElementById('solver-fileInput');
+        const dropArea = document.getElementById('solver-dropArea');
+        const previewImage = document.getElementById('solver-previewImage');
+        const placeholder = document.getElementById('solver-placeholder');
+        const loaderOcr = document.getElementById('solver-loader-ocr');
+        const textArea = document.getElementById('solver-text-output');
+        const solveBtn = document.getElementById('solver-solveButton');
+        const loaderSolving = document.getElementById('solver-loader-solving');
+        const resultSection = document.getElementById('solver-result-section');
+        const outputContainer = document.getElementById('solver-output-container');
+        const outputContent = document.getElementById('solver-output-content');
+        const actionsDiv = document.getElementById('solver-actions');
+        const copyBtn = document.getElementById('solver-copy-btn');
+        const downloadBtn = document.getElementById('solver-download-word-btn');
+
+        let currentSolverFile = null;
+
+        // 處理檔案
+        function handleSolverFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            currentSolverFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewImage.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                clearBtn.classList.remove('hidden');
+                clearBtn.classList.add('flex');
+                
+                // 上傳後自動開始辨識
+                startRecognition(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 自動辨識 (不填入文字，只做狀態提示)
+        async function startRecognition(file) {
+            if (!file) return;
+            loaderOcr.classList.remove('hidden');
+            textArea.placeholder = "AI 正在辨識中... 您可以在此輸入補充說明...";
+            solveBtn.disabled = true;
+            
+            // 模擬延遲，提升 UX (實際應用時，如果需要 OCR 用於其他用途可在此呼叫 API)
+            setTimeout(() => {
+                loaderOcr.classList.add('hidden');
+                textArea.placeholder = "辨識完成！如有需要，請在此輸入修正或補充說明，若無請直接點擊「開始解題」。";
+                solveBtn.disabled = false;
+            }, 1500);
+        }
+
+        // 事件監聽
+        selectFileBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files?.[0]) handleSolverFile(e.target.files[0]);
+        });
+        
+        // 拖曳與貼上
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+            dropArea.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
+        });
+        dropArea.addEventListener('dragover', () => dropArea.classList.add('border-emerald-400', 'bg-emerald-50'));
+        dropArea.addEventListener('dragleave', () => dropArea.classList.remove('border-emerald-400', 'bg-emerald-50'));
+        dropArea.addEventListener('drop', (e) => {
+            dropArea.classList.remove('border-emerald-400', 'bg-emerald-50');
+            if (e.dataTransfer.files?.[0]) handleSolverFile(e.dataTransfer.files[0]);
+        });
+        
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (const item of items) {
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    handleSolverFile(item.getAsFile());
+                    break;
+                }
+            }
+        });
+
+        // 清除按鈕
+        clearBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            currentSolverFile = null;
+            fileInput.value = '';
+            previewImage.src = '';
+            previewImage.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            clearBtn.classList.add('hidden');
+            clearBtn.classList.remove('flex');
+            textArea.value = '';
+            textArea.placeholder = "Tip: 如果 AI 看錯圖片細節，請在此修正...";
+            solveBtn.disabled = true;
+            resultSection.classList.add('hidden');
+        });
+
+        // 監聽文字框 (若無圖片但有文字，也可以解題)
+        textArea.addEventListener('input', () => {
+            solveBtn.disabled = (textArea.value.trim() === '' && !currentSolverFile);
+        });
+
+        // 開始解題
+        solveBtn.addEventListener('click', async () => {
+            const questionText = textArea.value.trim();
+            if (!questionText && !currentSolverFile) return;
+
+            resultSection.classList.remove('hidden');
+            loaderSolving.classList.remove('hidden');
+            outputContainer.classList.add('hidden');
+            actionsDiv.classList.add('hidden');
+            solveBtn.disabled = true;
+
+            // Prompt: 強制使用 HTML Table 和 Inline Styles，並要求移除 Markdown
+            const prompt = `
+                你是專業的學科解題老師。請針對以下題目進行詳細解題，並嚴格依照指定的 HTML 結構回傳。
+                **學生補充：** """${questionText}"""
+                
+                **指令：** 1. 優先參考圖片內容，若有補充說明則納入考量。
+                2. 直接輸出解題過程，不要描述圖片外觀。
+                
+                **HTML 結構與樣式 (請務必使用內嵌 CSS，禁止使用 Markdown 語法如 **粗體** 或 \`\`\`html 代碼塊)：**
+
+                1. **總標題**：
+                   <h1 style="font-size: 24px; font-weight: 800; color: #333; margin-bottom: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; font-family: 'Chiron GoRound TC', sans-serif;">【解題過程】</h1>
+
+                2. **主題標題區**：
+                   <div style="color: #059669; font-weight: bold; font-size: 18px; border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 24px; width: 100%; font-family: 'Chiron GoRound TC', sans-serif;">專業[科目]解題：[主題名稱]</div>
+
+                3. **題目區**：
+                   <div style="border-left: 4px solid #10b981; padding-left: 16px; margin-bottom: 28px; color: #374151; line-height: 1.75; font-family: 'Chiron GoRound TC', sans-serif;">
+                       <p style="margin: 0;"><strong>題目：</strong>[題目內容]</p>
+                       <!-- 若題目含化學反應式 -->
+                       <div style="text-align: center; color: #047857; font-weight: bold; font-size: 22px; margin: 20px 0; font-family: 'Chiron GoRound TC', sans-serif;">[方程式]</div>
+                   </div>
+
+                4. **步驟分析區**：
+                   <div style="border-left: 4px solid #10b981; padding-left: 16px; margin-bottom: 28px; color: #374151; line-height: 1.75; font-family: 'Chiron GoRound TC', sans-serif;">
+                       <p style="margin: 0;"><strong>解題分析與步驟：</strong></p>
+                       <p style="margin-top: 8px;"><strong>1. [步驟標題]</strong><br>[說明]...</p>
+                       <div style="text-align: center; color: #047857; font-weight: bold; font-size: 22px; margin: 20px 0; font-family: 'Chiron GoRound TC', sans-serif;">[關鍵方程式]</div>
+                   </div>
+
+                5. **最終答案區** (必須使用 Table 確保複製格式)：
+                   <table style="width: 100%; border: 2px solid #059669; border-radius: 8px; background-color: #ffffff; margin-top: 24px; border-collapse: separate; border-spacing: 0;">
+                       <tr>
+                           <td style="padding: 24px; text-align: center; border: none;">
+                               <div style="font-weight: bold; margin-bottom: 16px; font-size: 18px; color: #111827; font-family: 'Chiron GoRound TC', sans-serif;">最終答案（已平衡的化學反應方程式）：</div>
+                               <div style="color: #047857; font-weight: bold; font-size: 26px; margin: 16px 0; font-family: 'Chiron GoRound TC', sans-serif;">[最終方程式]</div>
+                               <div style="color: #374151; font-size: 16px; font-family: 'Chiron GoRound TC', sans-serif;">[補充說明]</div>
+                           </td>
+                       </tr>
+                   </table>
+
+                **排版細節：**
+                - 化學式下標請用 \`<sub>\` (如 \`H<sub>2</sub>O\`)。
+                - 上標請用 \`<sup>\` (如 \`Ca<sup>2+</sup>\`)。
+                - 箭頭請用 \`&rarr;\`。
+                - 不要有任何 Markdown 符號 (如 ** 或 ##)。
+            `;
+
+            if (currentSolverFile) {
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    const base64Data = reader.result.split(',')[1];
+                    const parts = [{ text: prompt }];
+                    parts.push({ inlineData: { mimeType: currentSolverFile.type, data: base64Data } });
+
+                    const payload = { contents: [{ parts: parts }] };
+                    const result = await callGeminiAPI(payload);
+                    processResult(result);
+                };
+                reader.readAsDataURL(currentSolverFile);
+            } else {
+                const payload = { contents: [{ parts: [{ text: prompt }] }] };
+                const result = await callGeminiAPI(payload);
+                processResult(result);
+            }
+
+            function processResult(result) {
+                let resultHtml = "";
+                if (result && result.candidates && result.candidates.length > 0) {
+                    resultHtml = result.candidates[0].content.parts[0].text;
+                }
+
+                if (resultHtml) {
+                    // 清洗字串：移除 markdown code block 標記與粗體星號
+                    let cleanHtml = resultHtml.replace(/```html/g, '').replace(/```/g, '').replace(/\*\*/g, '');
+                    outputContent.innerHTML = cleanHtml;
+                    outputContainer.classList.remove('hidden');
+                    actionsDiv.classList.remove('hidden');
+                    actionsDiv.classList.add('flex');
+                } else {
+                    outputContent.innerHTML = "<p class='text-red-500'>解題失敗，請稍後再試。</p>";
+                    outputContainer.classList.remove('hidden');
+                }
+                loaderSolving.classList.add('hidden');
+                solveBtn.disabled = false;
+            }
+        });
+
+        // 複製功能
+        copyBtn.addEventListener('click', () => {
+            const range = document.createRange(); 
+            range.selectNode(outputContent);
+            window.getSelection().removeAllRanges(); 
+            window.getSelection().addRange(range);
+            try { 
+                document.execCommand('copy'); 
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = "已複製！";
+                setTimeout(() => copyBtn.textContent = originalText, 2000);
+            } catch (e) { 
+                alert("複製失敗，請手動選取複製。"); 
+            }
+            window.getSelection().removeAllRanges();
+        });
+
+        // 下載 Word
+        downloadBtn.addEventListener('click', () => {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        /* *** 修改：Word 下載時的 CSS 也改為圓體 *** */
+                        body { font-family: "Chiron GoRound TC", sans-serif; line-height: 1.6; }
+                        .solver-main-title { font-size: 24px; font-weight: 800; color: #333; margin-bottom: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+                        .solver-subject { color: #059669; font-weight: bold; font-size: 18px; border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 24px; width: 100%; }
+                        .solver-section { border-left: 4px solid #10b981; padding-left: 16px; margin-bottom: 28px; color: #374151; line-height: 1.75; }
+                        .solver-section strong { color: #111827; font-weight: 700; }
+                        .solver-equation { text-align: center; color: #047857; font-weight: bold; font-size: 22px; margin: 20px 0; font-family: "Chiron GoRound TC", sans-serif; }
+                        .solver-final-box { border: 1px solid #059669; border-radius: 8px; padding: 24px; margin-top: 32px; text-align: center; }
+                        .solver-final-title { font-weight: bold; margin-bottom: 16px; font-size: 18px; color: #111827; }
+                        .solver-final-eq { color: #047857; font-weight: bold; font-size: 26px; margin: 16px 0; font-family: "Chiron GoRound TC", sans-serif; }
+                    </style>
+                </head>
+                <body>
+                    ${outputContent.innerHTML}
+                </body>
+                </html>
+            `;
+            saveAs(htmlDocx.asBlob(htmlContent), '學科解題.docx');
+        });
+
+    </script>
+</body>
+</html>
